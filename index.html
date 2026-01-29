@@ -1,1 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Padua Redemption: Opportunity Map</title>
+<style>
+:root{
+  /* Sci-fi palette */
+  --bg0:#05070c; --bg1:#070b12;
+  --panel: rgba(10, 16, 26, 0.72);
+  --border: rgba(110, 240, 255, 0.22);
+  --text: rgba(235, 250, 255, 0.92);
+  --muted: rgba(235, 250, 255, 0.62);
+  --cyan: rgba(110, 240, 255, 0.95);
+  --purple: rgba(180, 120, 255, 0.95);
+  --good: rgba(120, 255, 200, 0.95);
+  --bad: rgba(255, 120, 140, 0.95);
+}
 
+*{box-sizing:border-box}
+html, body { height: 100%; }
+body{
+  margin:0; min-height:100vh;
+  display:grid; place-items:center; padding:28px;
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(1200px 700px at 20% 15%, rgba(110,240,255,0.12), transparent 55%),
+    radial-gradient(1000px 650px at 80% 30%, rgba(180,120,255,0.10), transparent 60%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+  overflow-x:hidden;
+}
+
+.wrap{width:min(1040px,100%); text-align:center;}
+
+h1{
+  margin: 0 0 8px;
+  font-size: clamp(30px, 4.4vw, 52px);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  text-shadow: 0 0 18px rgba(110,240,255,0.18);
+}
+.subtitle {
+    margin-bottom: 24px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px;
+}
+
+.card{
+  background: linear-gradient(180deg, rgba(10,16,26,0.78), rgba(7,10,16,0.72));
+  border: 1px solid rgba(110,240,255,0.18);
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(180,120,255,0.10) inset;
+  padding: 18px;
+  text-align:left;
+  position:relative;
+}
+
+/* TOPBAR */
+.topbar{
+  display:flex; gap:12px; flex-wrap:wrap;
+  align-items:stretch; justify-content:space-between;
+  margin-bottom:12px;
+}
+.pill{
+  flex:1 1 200px;
+  background: linear-gradient(180deg, rgba(10,16,26,0.70), rgba(8,12,20,0.62));
+  border: 1px solid rgba(110,240,255,0.16);
+  border-radius: 16px;
+  padding: 12px 14px;
+  min-height: 80px;
+  display:flex; flex-direction: column; justify-content: center;
+  box-shadow: 0 0 0 1px rgba(180,120,255,0.08) inset;
+}
+.pill-title { font-weight: 700; color: var(--text); font-size: 13px; margin-bottom: 6px; text-transform: uppercase;}
+
+/* UPLOAD BUTTON styling */
+input[type="file"] { display: none; }
+.btn-upload {
+    display: inline-block;
+    border: 1px dashed rgba(110,240,255,0.4);
+    background: rgba(110,240,255,0.05);
+    color: var(--cyan);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px; text-align: center;
+    transition: all 0.2s;
+}
+.btn-upload:hover { background: rgba(110,240,255,0.15); border-color: var(--cyan); }
+
+/* PROGRESS BAR */
+.progress-container {
+    background: rgba(0,0,0,0.4);
+    border-radius: 99px; height: 12px; width: 100%;
+    border: 1px solid rgba(110,240,255,0.2);
+    overflow: hidden; margin-top: 5px;
+}
+.progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    transition: width 0.4s ease;
+    box-shadow: 0 0 10px rgba(110,240,255,0.3);
+}
+
+/* MAIN VIEW AREA */
+.map-viewport {
+    width: 640px;
+    height: 360px;
+    margin: 20px auto;
+    border: 2px solid rgba(110,240,255,0.3);
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    transition: all 1.5s cubic-bezier(0.19, 1, 0.22, 1); /* Animation for collapse */
+}
+
+/* Collapse Animation Class */
+.map-viewport.collapsed {
+    transform: scale(0.01) rotate(90deg);
+    opacity: 0;
+    border-color: var(--good);
+    box-shadow: 0 0 100px var(--good);
+}
+
+/* Uploaded Image Layer */
+.map-image {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0.8;
+    position: absolute; top:0; left:0; z-index: 0;
+}
+
+/* Grid Overlay */
+.grid-overlay {
+    position: absolute; inset: 0; pointer-events: none; z-index: 10;
+    background-size: 10px 10px;
+    background-image: 
+        linear-gradient(to right, rgba(110,240,255,0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(110,240,255,0.08) 1px, transparent 1px);
+}
+
+/* Map Objects */
+.map-obj {
+    position: absolute;
+    width: 10px; height: 10px;
+    cursor: grab;
+    z-index: 20;
+    user-select: none;
+    transition: filter 0.2s;
+}
+.map-obj:active { cursor: grabbing; }
+.map-obj.selected {
+    filter: drop-shadow(0 0 4px #fff);
+    outline: 1px solid #fff;
+}
+
+/* CONTROLS (Bottom) */
+.controls-bar {
+    display: flex; justify-content: center; gap: 15px; margin-top: 15px;
+}
+button.spawn-btn {
+    border: 1px solid rgba(110,240,255,0.18);
+    background: linear-gradient(180deg, rgba(18,28,44,0.75), rgba(8,12,20,0.70));
+    color: var(--text); padding: 10px 20px; border-radius: 999px;
+    cursor:pointer; font-weight: 750; text-transform: uppercase; font-size: 12px;
+    transition: all .2s ease;
+    box-shadow: 0 0 0 1px rgba(180,120,255,0.06) inset;
+}
+button.spawn-btn:hover { filter: brightness(1.2); border-color:var(--cyan); }
+button.spawn-btn:active { transform: scale(.98); }
+
+/* STATUS FORM STYLES */
+.status-form { display: none; flex-direction: column; gap: 5px; width: 100%; }
+.status-form.active { display: flex; }
+.form-row { display: flex; gap: 5px; align-items: center; justify-content: space-between; }
+.form-label { font-size: 10px; color: var(--muted); width: 30px; }
+.form-input { 
+    flex: 1; 
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(110,240,255,0.2);
+    color: var(--cyan); font-size: 11px; padding: 2px 5px; border-radius: 4px;
+    font-family: ui-monospace, monospace;
+}
+.form-input:focus { border-color: var(--cyan); outline: none; }
+
+.empty-msg { font-size: 12px; color: var(--muted); font-style: italic; text-align: center; margin-top: 10px;}
+
+/* Encrypt Button */
+.btn-encrypt {
+    width: 100%; margin-top: 5px;
+    background: var(--purple); color: #000; border: 1px solid #fff;
+    box-shadow: 0 0 15px var(--purple); animation: pulse 2s infinite;
+    padding: 10px; border-radius: 8px; font-weight: 800; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 0.1em;
+}
+@keyframes pulse { 50% { box-shadow: 0 0 5px var(--purple); } }
+
+</style>
+</head>
+
+<body> 
+<div class="wrap"> 
+    <h1>Opportunity Map</h1>
+    <div class="subtitle">Create a map of value using 2km Altitude Imaging</div>
+
+    <div class="card">
+        
+        <div class="topbar">
+            <div class="pill">
+                <span class="pill-title">Source Data</span>
+                <label for="imgUpload" class="btn-upload">Upload 1920x1080 Image</label>
+                <input type="file" id="imgUpload" accept="image/*">
+                <div style="font-size:10px; color:var(--muted); margin-top:5px; text-align:center;" id="fileNameDisplay">No Data</div>
+            </div>
+
+            <div class="pill" style="flex: 2;">
+                <span class="pill-title">Object Analysis</span>
+                <div id="statusContent">
+                    <div class="empty-msg">Select an object on the map to analyze</div>
+                </div>
+            </div>
+
+            <div class="pill">
+                <span class="pill-title">Value of Map Data</span>
+                <div id="progressArea">
+                    <div class="sub" style="font-size:11px; margin-bottom:4px;">Data Complexity: <span id="pctText">0%</span></div>
+                    <div class="progress-container">
+                        <div class="progress-fill" id="progBar"></div>
+                    </div>
+                </div>
+                <button id="btnEncrypt" class="btn-encrypt" style="display:none;">Encrypt Data</button>
+            </div>
+        </div>
+
+        <div class="map-viewport" id="mapContainer">
+            <div class="grid-overlay"></div>
+            <img id="mapImage" class="map-image" src="" style="display:none;">
+            <div id="objLayer"></div>
+        </div>
+
+        <div class="controls-bar">
+            <button class="spawn-btn" onclick="spawnObject('ROCK')">+ New Rock</button>
+            <button class="spawn-btn" onclick="spawnObject('GEM')">+ New Gem</button>
+            <button class="spawn-btn" onclick="spawnObject('WRECK')">+ New Wreckage</button>
+        </div>
+
+    </div>
+    <div style="margin-top:20px; font-size:12px; color:rgba(235,250,255,0.4);">
+        PADUA REDEMPTION • CARTOGRAPHY MODULE
+    </div>
+</div> 
+
+<script>
+/**
+ * OPPORTUNITY MAP LOGIC
+ */
+
+// Data
+const objects = []; 
+let selectedId = null;
+let dragId = null;
+let offset = { x:0, y:0 };
+
+// DOM
+const mapContainer = document.getElementById('mapContainer');
+const mapImage = document.getElementById('mapImage');
+const objLayer = document.getElementById('objLayer');
+const statusContent = document.getElementById('statusContent');
+const progBar = document.getElementById('progBar');
+const pctText = document.getElementById('pctText');
+const btnEncrypt = document.getElementById('btnEncrypt');
+const progressArea = document.getElementById('progressArea');
+const imgUpload = document.getElementById('imgUpload');
+const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+// --- 1. Image Upload ---
+imgUpload.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if(file){
+        const reader = new FileReader();
+        reader.onload = function(event){
+            mapImage.src = event.target.result;
+            mapImage.style.display = 'block';
+            fileNameDisplay.textContent = file.name;
+        }
+        reader.readAsDataURL(file);
+    }
+});
+
+// --- 2. Spawning Objects ---
+function spawnObject(type) {
+    const id = Date.now() + Math.random();
+    
+    // Config based on type
+    let src = "";
+    let fields = [];
+    
+    if(type === 'ROCK') {
+        src = "boulder.png";
+        fields = ['TYPE', 'MASS', 'INST', 'RES'];
+    } else if(type === 'GEM') {
+        src = "gem.png";
+        fields = ['MINERAL', 'MASS'];
+    } else if(type === 'WRECK') {
+        src = "Salvage.png";
+        fields = ['SIG', 'MASS', 'TYPE'];
+    }
+
+    // Create Data Object
+    const objData = {
+        id: id,
+        type: type,
+        x: 315, // Center(ish) of 640
+        y: 175, // Center(ish) of 360
+        src: src,
+        fields: fields,
+        values: {} // Stores input values
+    };
+
+    // Init empty values
+    fields.forEach(f => objData.values[f] = "");
+
+    objects.push(objData);
+
+    // Create DOM Element
+    const img = document.createElement('img');
+    img.src = src;
+    img.className = 'map-obj';
+    img.id = id;
+    img.style.left = objData.x + 'px';
+    img.style.top = objData.y + 'px';
+    
+    // Fallback for missing images
+    img.onerror = () => {
+        // Colored squares if pngs missing
+        img.style.background = type==='GEM' ? '#f0f' : (type==='WRECK' ? '#0ff' : '#aaa');
+        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; 
+    };
+
+    // Interaction Events
+    img.addEventListener('mousedown', (e) => startDrag(e, id));
+    
+    objLayer.appendChild(img);
+    
+    // Auto-select new object
+    selectObject(id);
+    updateProgress();
+}
+
+// --- 3. Drag & Drop Logic ---
+function startDrag(e, id) {
+    e.preventDefault(); // Prevent default drag behavior
+    dragId = id;
+    selectObject(id); // Select on click
+
+    const obj = objects.find(o => o.id == id);
+    const el = document.getElementById(id);
+
+    // Calculate offset so we drag from where we clicked, not top-left
+    const rect = el.getBoundingClientRect();
+    offset.x = e.clientX - rect.left;
+    offset.y = e.clientY - rect.top;
+
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+}
+
+function onDrag(e) {
+    if(!dragId) return;
+
+    const containerRect = mapContainer.getBoundingClientRect();
+    
+    // Calculate relative X/Y
+    let newX = e.clientX - containerRect.left - offset.x;
+    let newY = e.clientY - containerRect.top - offset.y;
+
+    // Boundary Constraints (640x360 - 10px object)
+    if(newX < 0) newX = 0;
+    if(newX > 630) newX = 630;
+    if(newY < 0) newY = 0;
+    if(newY > 350) newY = 350;
+
+    // Snapping to 10px Grid
+    newX = Math.round(newX / 10) * 10;
+    newY = Math.round(newY / 10) * 10;
+
+    // Update Data
+    const obj = objects.find(o => o.id == dragId);
+    obj.x = newX;
+    obj.y = newY;
+
+    // Update Visuals
+    const el = document.getElementById(dragId);
+    el.style.left = newX + 'px';
+    el.style.top = newY + 'px';
+}
+
+function stopDrag() {
+    dragId = null;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+}
+
+// --- 4. Selection & Status Window ---
+function selectObject(id) {
+    selectedId = id;
+    
+    // Visual Highlight
+    document.querySelectorAll('.map-obj').forEach(el => el.classList.remove('selected'));
+    document.getElementById(id).classList.add('selected');
+
+    renderStatusWindow(id);
+}
+
+function renderStatusWindow(id) {
+    const obj = objects.find(o => o.id == id);
+    statusContent.innerHTML = ''; // Clear
+
+    // Create Form Container
+    const form = document.createElement('div');
+    form.className = 'status-form active';
+
+    // Header
+    const head = document.createElement('div');
+    head.innerHTML = `<strong style="color:var(--cyan)">${obj.type} DETECTED</strong>`;
+    head.style.marginBottom = "5px";
+    head.style.fontSize = "11px";
+    form.appendChild(head);
+
+    // Create Inputs
+    obj.fields.forEach(field => {
+        const row = document.createElement('div');
+        row.className = 'form-row';
+        
+        row.innerHTML = `
+            <span class="form-label">${field}</span>
+            <input type="text" class="form-input" maxlength="40" 
+             value="${obj.values[field] || ''}" 
+             data-field="${field}">
+        `;
+        form.appendChild(row);
+    });
+
+    statusContent.appendChild(form);
+
+    // Attach Input Listeners
+    const inputs = form.querySelectorAll('input');
+    inputs.forEach(inp => {
+        inp.addEventListener('input', (e) => {
+            const f = e.target.dataset.field;
+            obj.values[f] = e.target.value;
+            updateProgress(); // Filling fields adds progress
+        });
+    });
+}
+
+// --- 5. Progress Logic ---
+function updateProgress() {
+    let totalScore = 0;
+
+    objects.forEach(obj => {
+        // Base score for object existence (9%)
+        totalScore += 9;
+
+        // Score for filled fields (5% each)
+        obj.fields.forEach(f => {
+            if(obj.values[f] && obj.values[f].trim().length > 0) {
+                totalScore += 5;
+            }
+        });
+    });
+
+    // Cap at 100
+    if(totalScore > 100) totalScore = 100;
+
+    // Render
+    progBar.style.width = totalScore + '%';
+    pctText.textContent = totalScore + '%';
+
+    // Encryption State
+    if(totalScore >= 100) {
+        progressArea.style.display = 'none';
+        btnEncrypt.style.display = 'block';
+    } else {
+        progressArea.style.display = 'block';
+        btnEncrypt.style.display = 'none';
+    }
+}
+
+// --- 6. End Game Animation ---
+btnEncrypt.addEventListener('click', () => {
+    // Prevent double clicking
+    btnEncrypt.disabled = true;
+    btnEncrypt.textContent = "TRANSMITTING...";
+    
+    // Trigger Collapse
+    mapContainer.classList.add('collapsed');
+
+    // Update Status window after delay
+    setTimeout(() => {
+        statusContent.innerHTML = '<div style="color:var(--good); font-weight:bold; text-align:center;">DATA SECURED.<br>PACKET SENT.</div>';
+    }, 1200);
+});
+
+</script>
+</body>
+</html>
