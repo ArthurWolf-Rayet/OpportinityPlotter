@@ -16,6 +16,7 @@
   --purple: rgba(180, 120, 255, 0.95);
   --good: rgba(120, 255, 200, 0.95);
   --bad: rgba(255, 120, 140, 0.95);
+  --danger: rgba(255, 80, 80, 0.9);
 }
 
 *{box-sizing:border-box}
@@ -108,6 +109,19 @@ input[type="file"] { display: none; }
     background: linear-gradient(90deg, var(--cyan), var(--purple));
     transition: width 0.4s ease;
     box-shadow: 0 0 10px rgba(110,240,255,0.3);
+}
+
+/* CURRENCY DISPLAY */
+.currency-display {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--good);
+    text-shadow: 0 0 10px rgba(120, 255, 200, 0.4);
+    margin-bottom: 4px;
+}
+.currency-label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
 }
 
 /* MAIN VIEW AREA */
@@ -205,6 +219,15 @@ button.spawn-btn:active { transform: scale(.98); }
 
 .empty-msg { font-size: 12px; color: var(--muted); font-style: italic; text-align: center; margin-top: 10px;}
 
+.btn-delete {
+    margin-top: 8px;
+    background: rgba(255, 50, 50, 0.15); border: 1px solid var(--danger);
+    color: var(--danger); font-size: 10px; padding: 6px; border-radius: 4px;
+    cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em;
+    transition: all 0.2s;
+}
+.btn-delete:hover { background: var(--danger); color: #000; box-shadow: 0 0 10px var(--danger); }
+
 .btn-encrypt {
     width: 100%; margin-top: 5px;
     background: var(--purple); color: #000; border: 1px solid #fff;
@@ -241,6 +264,9 @@ button.spawn-btn:active { transform: scale(.98); }
 
             <div class="pill">
                 <span class="pill-title">Value of Map Data</span>
+                
+                <div class="currency-display" id="uecDisplay">0 UeC</div>
+
                 <div id="progressArea">
                     <div class="sub" style="font-size:11px; margin-bottom:4px;">Data Complexity: <span id="pctText">0%</span></div>
                     <div class="progress-container">
@@ -277,7 +303,7 @@ button.spawn-btn:active { transform: scale(.98); }
  */
 
 // Global State
-const objects = []; 
+let objects = []; 
 let selectedId = null;
 let dragId = null;
 let offset = { x:0, y:0 };
@@ -296,6 +322,7 @@ const btnEncrypt = document.getElementById('btnEncrypt');
 const progressArea = document.getElementById('progressArea');
 const imgUpload = document.getElementById('imgUpload');
 const fileNameDisplay = document.getElementById('fileNameDisplay');
+const uecDisplay = document.getElementById('uecDisplay');
 
 // --- 1. Image Upload & Scaling Logic ---
 imgUpload.addEventListener('change', function(e) {
@@ -311,6 +338,7 @@ imgUpload.addEventListener('change', function(e) {
                 mapImage.style.display = 'block';
                 fileNameDisplay.textContent = file.name;
                 imageLoaded = true;
+                updateProgress(); // Initial value boost
             };
             img.src = event.target.result;
         }
@@ -361,10 +389,6 @@ function setupViewport(naturalW, naturalH) {
     
     // 6. Apply Grid Overlay Size
     gridOverlay.style.backgroundSize = `${cellSize}px ${cellSize}px`;
-    
-    // Clear old objects on new upload? (Optional, but usually safer)
-    // objLayer.innerHTML = '';
-    // objects.length = 0;
 }
 
 // --- 2. Spawning Objects ---
@@ -490,17 +514,25 @@ function stopDrag() {
     document.removeEventListener('mouseup', stopDrag);
 }
 
-// --- 4. Selection & Status Window ---
+// --- 4. Selection, Status Window & Deletion ---
 function selectObject(id) {
     selectedId = id;
     document.querySelectorAll('.map-obj').forEach(el => el.classList.remove('selected'));
-    document.getElementById(id).classList.add('selected');
+    
+    const el = document.getElementById(id);
+    if(el) el.classList.add('selected');
+    
     renderStatusWindow(id);
 }
 
 function renderStatusWindow(id) {
     const obj = objects.find(o => o.id == id);
     statusContent.innerHTML = ''; 
+
+    if(!obj) {
+        statusContent.innerHTML = '<div class="empty-msg">Select an object on the map to analyze</div>';
+        return;
+    }
 
     const form = document.createElement('div');
     form.className = 'status-form active';
@@ -523,6 +555,13 @@ function renderStatusWindow(id) {
         form.appendChild(row);
     });
 
+    // DELETE BUTTON
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-delete';
+    delBtn.innerText = "Remove Reading (Delete)";
+    delBtn.onclick = function() { deleteObject(id); };
+    form.appendChild(delBtn);
+
     statusContent.appendChild(form);
 
     const inputs = form.querySelectorAll('input');
@@ -540,22 +579,59 @@ function renderStatusWindow(id) {
     });
 }
 
-// --- 5. Progress Logic ---
+function deleteObject(id) {
+    // 1. Remove from DOM
+    const el = document.getElementById(id);
+    if(el) el.remove();
+
+    // 2. Remove from Data Array
+    objects = objects.filter(o => o.id !== id);
+
+    // 3. Reset UI
+    selectedId = null;
+    statusContent.innerHTML = '<div class="empty-msg">Signal Lost. Select an object.</div>';
+
+    // 4. Update Score
+    updateProgress();
+}
+
+// --- 5. Progress & Value Logic ---
 function updateProgress() {
+    // --- SCORING LOGIC ---
+    // User requirement: New object = 4% progress.
+    // Let's assume detail fields add 2% progress.
     let totalScore = 0;
+    
     objects.forEach(obj => {
-        totalScore += 9; 
+        totalScore += 4; // Base score for existing
         obj.fields.forEach(f => {
             if(obj.values[f] && obj.values[f].trim().length > 0) {
-                totalScore += 5;
+                totalScore += 2; // Score per detail
             }
         });
     });
 
+    // Cap at 100%
     if(totalScore > 100) totalScore = 100;
 
+    // --- CURRENCY LOGIC ---
+    // Base: 10,000 UeC (if image loaded)
+    // Max: 1,250,000 UeC
+    // Delta: 1,240,000 UeC distributed across 0-100% progress
+    
+    let currentValue = 0;
+    if(imageLoaded) {
+        currentValue = 10000;
+        const addedValue = (totalScore / 100) * 1240000;
+        currentValue += addedValue;
+    }
+
+    // Update UI elements
     progBar.style.width = totalScore + '%';
     pctText.textContent = totalScore + '%';
+    
+    // Format currency (e.g. 1,205,000 UeC)
+    uecDisplay.textContent = Math.floor(currentValue).toLocaleString() + " UeC";
 
     if(totalScore >= 100) {
         progressArea.style.display = 'none';
@@ -571,8 +647,9 @@ btnEncrypt.addEventListener('click', () => {
     btnEncrypt.disabled = true;
     btnEncrypt.textContent = "TRANSMITTING...";
     mapContainer.classList.add('collapsed');
+    uecDisplay.style.color = "var(--purple)";
     setTimeout(() => {
-        statusContent.innerHTML = '<div style="color:var(--good); font-weight:bold; text-align:center;">DATA SECURED.<br>PACKET SENT.</div>';
+        statusContent.innerHTML = '<div style="color:var(--good); font-weight:bold; text-align:center;">DATA SECURED.<br>PAYMENT SENT.</div>';
     }, 1200);
 });
 
